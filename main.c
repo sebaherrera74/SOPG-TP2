@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include "SerialManager.h"
 
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -12,79 +13,112 @@
 #include <netdb.h>
 #include <signal.h>
 #include <pthread.h>
-
+#include "serial.h"
 /**DEFINES**/
-#define BUFFER_MAZ_SIZE     120   //Tamaño maximo del buffer
-#define PORT_NUMBER        10000  //Puerto de conexion del socket
-#define UART_NUM            1     //Identificador del puerto serie utilizado 
-#define  UART_BAUDRATE     115200 //Baudrate del puerto serie 
+
+#define ERROR_MSGE_TREAHDEDUCIAA  "No se pudo iniciar thread para iniciar comunicacion serial"
 
 /*Variable globales */
-char buffer[BUFFER_MAZ_SIZE];     // buffer para guardar los densajes de la Uart y del socket 
-pthread_t thread;                 //Treahd para recibir datos del puertos serie de la edu-ciaa 
+
 
 /*Declaracion de funciones*/
+void bloquearSign( void );
+void desbloquearSign(void);
+void sigHandler( int sig );
 
-/* handler para el thread que recibe de la UART de la edu-ciaa y manda al socket */
-void *  receiveUartEduciaaSendToSocket  (void * parameters );
+volatile sig_atomic_t salida = 0;	// Bandera para salir del bucle cuando hay una señal 
 
 int main(void)
-{
+{   
+ pthread_t threadEduCiaa;                //Thread para recibir datos del puertos serie de la edu-ciaa 
+ pid_t miPid; 
+ struct sigaction sa;
 
-	printf("Inicio Serial Service\r\n");
+miPid = getpid();                        // obtengo el pid de este proceso
+printf("Inicio Serial Service (PID:%d)\r\n", miPid);
 
-/*Abre el puerto serial*/
-if( serial_open( UART_NUM, UART_BAUDRATE ) == 1 ){
-	exit( 1 );
+/* configuramos  SIGINT y SIGTERM */
+    sa.sa_handler = sigHandler;
+    sa.sa_flags = 0;
+    if( sigemptyset( &sa.sa_mask ) == -1)
+    {
+        perror( "sigemptyset" );
+        exit( 1 );
+    }
+    if( sigaction( SIGINT, &sa, NULL ) == -1 )
+    {
+        perror( "sigaction" );
+        exit( 1 );
+    }
+
+    if( sigemptyset( &sa.sa_mask ) == -1)
+    {
+        perror( "sigemptyset" );
+        exit( 1 );
+    }
+    if( sigaction( SIGTERM, &sa, NULL ) == -1 )
+    {
+        perror( "sigaction" );
+        exit( 1 );
+    }
+
+/* bloqueamos  señales */
+	bloquearSign();
+
+
+ 
+/*aqui lanzar thread de serial edu-ciaa */
+
+if (ThreadEduciaa(&threadEduCiaa)){
+	perror(ERROR_MSGE_TREAHDEDUCIAA);
+	return 1;
 }
-	
-/* se crea un thread para recibir de la UART y mandar al socket */
-if( pthread_create ( &thread, NULL, receiveUartEduciaaSendToSocket, NULL ) == -1 )
-{
-	perror( "pthread_create" );
-	exit( 1 );
+
+/*aqui lanzar thread de TCP entre serial service e interfaceService*/
+
+/* se desbloquean las señales SIGINT y SIGTERM */
+	desbloquearSign();
+
+while(!salida){
+	sleep(1);
+
 }
-    pthread_join (thread, NULL);
-	printf("Termino\n");
 
-
+    printf("\n\n sale While\r\n");
 	exit(EXIT_SUCCESS);
 	return 0;
 }
 
-/* handler para el thread que recibe de la UART y manda al socket */
-void * receiveUartEduciaaSendToSocket( void * parameters )
+
+
+
+
+
+/* función para bloquear signals */
+void bloquearSign( void )
 {
-	int n;
-while(1)
-	{	
-		/* se leen los mensajes enviados por la EDU-CIAA */
-		n = serial_receive( buffer, BUFFER_MAZ_SIZE );
-
-//		/* se bloquea el mutex */
-//		pthread_mutex_lock (&mutexData);
-
-		if( n > 0 )//&& newSockfd > 0 )
-		{
-			/* se imprimi un mensaje de recepción */
-			buffer[ n - 2 ] = '\0'; // se restan 2 unidades para eliminar "\r\n"
-			printf( "recibido por la uart: %s\n", buffer );
-			
-			/* se envian los mensajes al socket */
-			//if( write( newSockfd, buffer, strlen( buffer ) ) == -1 )
-			///{
-			//	perror( "socket_write" );
-			//	return NULL;
-			//}
-		}
-
-		/* se desbloquea el mutex */
-		//pthread_mutex_unlock (&mutexData);
-
-		/* tiempo de refresco del polling */
-		usleep( 1000 );
-	}
-	
-	return NULL;
+	sigset_t set;
+	int s;
+	sigemptyset( &set );
+	sigaddset( &set, SIGINT );
+	sigaddset( &set, SIGTERM );
+	pthread_sigmask( SIG_BLOCK, &set, NULL );
 }
 
+/* función para desbloquear signals */
+void desbloquearSign( void )
+{
+	sigset_t set;
+	int s;
+	sigemptyset( &set );
+	sigaddset( &set, SIGINT );
+	sigaddset( &set, SIGTERM );
+	pthread_sigmask( SIG_UNBLOCK, &set, NULL );
+}
+
+/* handler para manejo de SIGINT */
+void sigHandler( int sig )
+{
+	salida=1;
+	
+}
