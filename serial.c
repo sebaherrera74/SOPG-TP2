@@ -21,6 +21,7 @@ void * receiveUartEduciaaSendToSocket( void * parameters );
 char buffer [BUFFER_MAZ_SIZE];
 
 
+
 /* funcion de apertura puerto serie*/
 int OpenSerie (void) {
     char mensaje [BUFFER_MAZ_SIZE];
@@ -64,9 +65,7 @@ void * receiveUartEduciaaSendToSocket( void * parameters )
 	int nbytesrecibidos;
 while(1)
 	{	
-	 //printf("treahd\r\n");
-		/* se leen los mensajes enviados por la EDU-CIAA */
-		nbytesrecibidos = serial_receive( buffer, BUFFER_MAZ_SIZE );
+	 nbytesrecibidos = serial_receive( buffer, BUFFER_MAZ_SIZE );
 
 //		/* se bloquea el mutex */
 //		pthread_mutex_lock (&mutexData);
@@ -75,16 +74,15 @@ while(1)
 
 		if( nbytesrecibidos > 0 )//&& newSockfd > 0 )
 		{
-			/* se imprimi un mensaje de recepción */
-			buffer[ nbytesrecibidos - 2 ] = '\0'; // se restan 2 unidades para eliminar "\r\n"
-			printf( "recibido por la uart: %s\n", buffer );
-			
-			/* se envian los mensajes al socket */
-			//if( write( newSockfd, buffer, strlen( buffer ) ) == -1 )
-			///{
-			//	perror( "socket_write" );
-			//	return NULL;
-			//}
+		/* se imprimi un mensaje de recepción */
+		buffer[ nbytesrecibidos - 2 ] = '\0'; // se restan 2 unidades para eliminar "\r\n"
+		printf( "recibido por la uart: %s\n", buffer );
+		/* se envian los mensajes al socket */
+		if( write( newfd, buffer, strlen( buffer ) ) == -1 )
+		{
+			perror( "socket_write" );
+			return NULL;
+		}
 		}
 
 		/* se desbloquea el mutex */
