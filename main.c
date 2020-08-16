@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "SerialManager.h"
-
+#include <stdbool.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -39,15 +39,16 @@ void * ComClienteTcp( void * parameters );
 
 /*Variable globales */
 char buffer [BUFFER_MAZ_SIZE];
-volatile sig_atomic_t salida = 0;	// Bandera para salir del bucle cuando hay una señal 
+volatile sig_atomic_t salida = 1;	// Bandera para salir del bucle cuando hay una señal 
 int newfd,s;
 int datoCompartido;                 //
 pthread_t threadEduCiaa;  //Thread para recibir datos del puertos serie de la edu-ciaa 
 pthread_t threadTcp;   //Thread para comunicacion con el cliente TCP  
- int n;
-  char bufferSerial[BUFFER_MAZ_SIZE];
-  char buffersocket[BUFFER_MAZ_SIZE];
-  char bufferaux[BUFFER_MAZ_SIZE];  
+int n, nbytesrecibidos;;
+char bufferSerial[BUFFER_MAZ_SIZE];
+char buffersocket[BUFFER_MAZ_SIZE];
+char bufferaux[BUFFER_MAZ_SIZE];  
+bool conect=true;
 
 
 /* declaramos las estructuras y variables para el socket */
@@ -156,8 +157,8 @@ if(OpenSerie())
 
 
 
-/*lanzamos thread para tarea TCP de acuerdo a consideraciones del eneunciado*/
- if (ThreadTCP(threadTcp))
+//lanzamos thread para tarea TCP de acuerdo a consideraciones del eneunciado*/
+if (ThreadTCP(threadTcp))
 	{
 	perror(ERROR_MSGE_TREAHDTCP);
 	exit(1);
@@ -166,7 +167,6 @@ if(OpenSerie())
 	{
 	printf("Thread creado correctamente");
 	}
-
 
 
 
@@ -184,15 +184,35 @@ if(OpenSerie())
 */	
 
 /* se desbloquean las señales SIGINT y SIGTERM */
-    desbloquearSign();
+desbloquearSign();
 
 while(1)
-{
+{	
+/*
+  //printf("DEBUG");
+	/* tiempo de refresco del polling */
+		
+    int aux;
+	nbytesrecibidos = serial_receive( buffer, BUFFER_MAZ_SIZE ); //leo puerto serial y almaceno en buffer
 
-   	usleep(10000);
+//		/* se bloquea el mutex */
+//		pthread_mutex_lock (&mutexData);
+
+ //si recibi mensajes imprimo e envio por el socket
+
+/*	if( nbytesrecibidos > 0 && buffer[0]=='>')   //si los bytes recibidos y el primer caracter sea >
+	{
+	/* se imprimi un mensaje de recepción */
+	//buffer[ nbytesrecibidos - 2 ] = '\0'; // se restan 2 unidades para eliminar "\r\n"
+/*	printf( "\nrecibido por la uart: %s\n", buffer );
+    printf( "bytes recibidos:%i\n", nbytesrecibidos );
+    aux=buffer[14]-48;  //me dice el valor de la tecla pulsada
+    printf( "Tecla Pulsada:%i\n",aux );
+    }
+*/
+sleep(10);
 
 }
-
     printf("\n\n sale While\r\n");
 	exit(EXIT_SUCCESS);
 	return 0;
@@ -228,7 +248,7 @@ void desbloquearSign( void )
 /* handler para manejo de SIGINT */
 void sigHandler( int sig )
 {
-	salida=1;
+	salida=0;
 	
 }
 
@@ -257,14 +277,80 @@ int ThreadTCP(pthread_t threadtcp)
  if( pthread_create (&threadtcp, NULL, ComClienteTcp, NULL ) == -1 )
    {
     printf( "error pthread_create" );
-	return 0;
+	return 1;
    }
-    pthread_join (threadtcp, NULL);
+    //pthread_join (threadtcp, NULL);
 	//printf("Termino\n");
 
     return 0;
 
 }
+
+/* handler para el thread que establece comunicacion con el cliente TCP */
+void * ComClienteTcp( void * parameters )
+{
+	printf("Esperando conexiones\r\n"); 
+while(salida) //ver que condicion que pongo aqui 
+{	
+
+   //Ejecutamos accept() para recibir conexiones entrantes
+	addr_len = sizeof(struct sockaddr_in);
+    if ( (newfd = accept(s, (struct sockaddr *)&clientaddr,&addr_len)) == -1)
+    {
+	   perror("error en accept");
+	   exit(1);
+	}
+	char ipClient[32];
+	inet_ntop(AF_INET, &(clientaddr.sin_addr), ipClient, sizeof(ipClient));
+	printf  ("server:  conexion desde:  %s\n",ipClient);
+	
+   
+   
+   //while(conect)  //connected
+  // if( (n = recv(newfd,buffersocket,120,0)) == -1 )
+//	{
+//		perror("Error leyendo mensaje en socket");
+//		exit(1);
+//	}
+    
+	while((n = recv(newfd,buffersocket,120,0))!=0)
+	{
+		if (n==-1)
+		{
+		perror("Error leyendo mensaje en socket");
+        exit(1);
+		}
+
+   		else if(buffersocket[0]==':')
+		{   
+			int out1,out2,out3,out4;  
+			buffersocket[n]=0x00;
+			out1=buffersocket[7]-'0';  //paso de caracter a int 
+			out2=buffersocket[8]-'0';
+			out3=buffersocket[9]-'0';
+			out4=buffersocket[10]-'0';
+		    sprintf(buffersocket,">OUTS:%d,%d,%d,%d\r\n",out1,out2,out3,out4);
+			//bufferaux[15]=0x00;
+			serial_send(buffersocket,strlen(buffersocket));
+			printf("envio a educiaa: %s\n",buffersocket);
+			   
+		}
+		else
+		{
+		/*imprimir que no es el formato*/
+		printf("No es el formato del protocolo");
+		n=0;
+		}
+		
+	//buffersocket[n]=0x00;
+	//printf("Recibi %d bytes.:%s\n",n,buffersocket);
+	//n=0;
+	}
+ close(newfd);
+}
+return NULL;
+}
+
 
 int ThreadEduciaa(pthread_t threadciaa)
 {
@@ -286,51 +372,6 @@ int ThreadEduciaa(pthread_t threadciaa)
 
     return 0;
 }
-/* handler para el thread que establece comunicacion con el cliente TCP */
-void * ComClienteTcp( void * parameters )
-{ 
-	printf("Esperando conexiones\r\n");
-    
-   //Ejecutamos accept() para recibir conexiones entrantes
-	addr_len = sizeof(struct sockaddr_in);
-    if ( (newfd = accept(s, (struct sockaddr *)&clientaddr,&addr_len)) == -1)
-    {
-	   perror("error en accept");
-	   exit(1);
-	}
-	char ipClient[32];
-	inet_ntop(AF_INET, &(clientaddr.sin_addr), ipClient, sizeof(ipClient));
-	printf  ("server:  conexion desde:  %s\n",ipClient);
-	
-   while(1){
-	usleep(10000);
-	if( (n = read(newfd,buffersocket,120)) == -1 )
-	{
-		perror("Error leyendo mensaje en socket");
-		exit(1);
-	}
-    
-   else
-   	{
-		int out1,out2,out3,out4;   
-		if(buffersocket[0]==':')
-			{
-				out1=buffersocket[7]-'0';  //paso de caracter a int 
-				out2=buffersocket[8]-'0';
-				out3=buffersocket[9]-'0';
-				out4=buffersocket[10]-'0';
-				sprintf(bufferaux,">OUTS:%d,%d,%d,%d\r\n",out1,out2,out3,out4);
-				bufferaux[15]=0x00;
-				serial_send(bufferaux,16);
-				//printf("%s",bufferaux);
-			}
-		}
-	buffersocket[n]=0x00;
-	printf("Recibi %d bytes.:%s\n",n,buffersocket);
-   }    
-}
-
-
 
 
 /* handler para el thread que recibe de la UART y manda al socket */
