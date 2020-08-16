@@ -155,8 +155,6 @@ if(OpenSerie())
    return 1;
    }
 
-
-
 //lanzamos thread para tarea TCP de acuerdo a consideraciones del eneunciado*/
 if (ThreadTCP(threadTcp))
 	{
@@ -188,40 +186,34 @@ desbloquearSign();
 
 while(1)
 {	
-/*
-  //printf("DEBUG");
-	/* tiempo de refresco del polling */
-		
-    int aux;
+    int aux,m;
 	nbytesrecibidos = serial_receive( buffer, BUFFER_MAZ_SIZE ); //leo puerto serial y almaceno en buffer
-
-//		/* se bloquea el mutex */
-//		pthread_mutex_lock (&mutexData);
-
- //si recibi mensajes imprimo e envio por el socket
-
-/*	if( nbytesrecibidos > 0 && buffer[0]=='>')   //si los bytes recibidos y el primer caracter sea >
+    
+    
+	if (nbytesrecibidos>0)
 	{
-	/* se imprimi un mensaje de recepción */
-	//buffer[ nbytesrecibidos - 2 ] = '\0'; // se restan 2 unidades para eliminar "\r\n"
-/*	printf( "\nrecibido por la uart: %s\n", buffer );
-    printf( "bytes recibidos:%i\n", nbytesrecibidos );
-    aux=buffer[14]-48;  //me dice el valor de la tecla pulsada
-    printf( "Tecla Pulsada:%i\n",aux );
-    }
-*/
-sleep(10);
+		if (!memcmp(buffer,">TOGGLE STATE:",strlen(">TOGGLE STATE:"))) //comparo el buffer recibido sea de la pulsacion de la educiaa
+		{
+	    sscanf(buffer,">TOGGLE STATE:%d",&aux); 
+    	printf("\n%s\n",buffer);
+	    printf( "bytes recibidos:%i\n", nbytesrecibidos );
+	    
+	    sprintf(buffer,":LINE%dTG\n",aux);
+        if (write(newfd,buffer,strlen(buffer))==-1)  //envio al fd el buffer con el formato pedido en el tp
+	    {
+         perror("error escribiendo en socket");
+	     exit(1);
+	    }    
+	}
+	}	
+/* tiempo de refresco del polling */
+sleep(1);
 
 }
     printf("\n\n sale While\r\n");
 	exit(EXIT_SUCCESS);
 	return 0;
 }
-
-
-
-
-
 
 /* función para bloquear signals */
 void bloquearSign( void )
