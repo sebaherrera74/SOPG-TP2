@@ -28,7 +28,8 @@
 /*Declaracion de funciones*/
 void bloquearSign(void);
 void desbloquearSign(void);
-void sigHandler(int sig);
+void sigIntHandler(int sig);
+void sigTermHandler(int sig);
 int OpenSerie(void);
 int ThreadTCP(pthread_t threadtcp);
 void *ComClienteTcp(void *parameters);
@@ -53,31 +54,35 @@ struct sockaddr_in serveraddr;
 int main(void)
 {
 	pid_t miPid;
-	struct sigaction sa;
+	struct sigaction sig_1, sig_2;
 
 	miPid = getpid(); // obtengo el pid de este proceso
 	printf("Inicio Serial Service (PID:%d)\r\n", miPid);
 
 	/* configuramos  SIGINT y SIGTERM */
-	sa.sa_handler = sigHandler;
-	sa.sa_flags = 0;
-	if (sigemptyset(&sa.sa_mask) == -1)
+	sig_1.sa_handler = sigIntHandler;
+	sig_1.sa_flags = 0;
+
+	sig_2.sa_handler = sigTermHandler;
+	sig_2.sa_flags = 0;
+
+	if (sigemptyset(&sig_1.sa_mask) == -1)
 	{
 		perror("sigemptyset");
 		exit(1);
 	}
-	if (sigaction(SIGINT, &sa, NULL) == -1)
+	if (sigaction(SIGINT, &sig_1, NULL) == -1)
 	{
 		perror("sigaction");
 		exit(1);
 	}
 
-	if (sigemptyset(&sa.sa_mask) == -1)
+	if (sigemptyset(&sig_2.sa_mask) == -1)
 	{
 		perror("sigemptyset");
 		exit(1);
 	}
-	if (sigaction(SIGTERM, &sa, NULL) == -1)
+	if (sigaction(SIGTERM, &sig_2, NULL) == -1)
 	{
 		perror("sigaction");
 		exit(1);
@@ -152,9 +157,9 @@ int main(void)
 	/* se desbloquean las señales SIGINT y SIGTERM */
 	desbloquearSign();
 
-	while (1)
+	while (salida)
 	{
-		int aux, m;
+		int aux;
 		nbytesrecibidos = serial_receive(buffer, BUFFER_MAZ_SIZE); //leo puerto serial y almaceno en buffer
 
 		if (nbytesrecibidos > 0)
@@ -164,7 +169,7 @@ int main(void)
 				sscanf(buffer, ">TOGGLE STATE:%d", &aux); // cargo en el buffer el formato y le agrego
 				printf("\n%s\n", buffer);
 				printf("bytes recibidos:%i\n", nbytesrecibidos);
-                sprintf(buffer, ":LINE%dTG\n", aux);
+				sprintf(buffer, ":LINE%dTG\n", aux);
 				if (write(newfd, buffer, strlen(buffer)) == -1) //envio al fd el buffer con el formato pedido en el tp
 				{
 					perror("error escribiendo en socket");
@@ -175,7 +180,12 @@ int main(void)
 		/* tiempo de refresco del polling */
 		usleep(10000); //Para que no sea bloqueante
 	}
+
 	printf("\n\n sale While\r\n");
+	pthread_cancel(threadTcp); 
+	pthread_join(threadTcp,NULL);
+	
+	
 	exit(EXIT_SUCCESS);
 	return 0;
 }
@@ -203,11 +213,16 @@ void desbloquearSign(void)
 }
 
 /* handler para manejo de SIGINT */
-void sigHandler(int sig)
+void sigIntHandler(int sig)
 {
 	salida = 0;
 }
 
+/* handler para manejo de SIGTERM */
+void sigTermHandler(int sig)
+{
+	salida = 0;
+}
 /* funcion de apertura puerto serie*/
 int OpenSerie(void)
 {
