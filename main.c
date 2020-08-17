@@ -58,19 +58,8 @@ bool conect=true;
 
 int main(void)
 {   
-  /*int n;
-  char bufferSerial[BUFFER_MAZ_SIZE];
-  char buffersocket[BUFFER_MAZ_SIZE];
-  char bufferaux[BUFFER_MAZ_SIZE];  
-
-
-/* declaramos las estructuras y variables para el socket */
-  // socklen_t addr_len;;
-   //struct sockaddr_in clientaddr;
-   //struct sockaddr_in serveraddr;
-
-   pid_t miPid; 
-   struct sigaction sa;
+pid_t miPid; 
+struct sigaction sa;
 
 miPid = getpid();                        // obtengo el pid de este proceso
 printf("Inicio Serial Service (PID:%d)\r\n", miPid);
@@ -155,7 +144,7 @@ if(OpenSerie())
    return 1;
    }
 
-//lanzamos thread para tarea TCP de acuerdo a consideraciones del eneunciado*/
+//lanzamos thread para tarea TCP de acuerdo a consideraciones del enunciado*/
 if (ThreadTCP(threadTcp))
 	{
 	perror(ERROR_MSGE_TREAHDTCP);
@@ -163,12 +152,10 @@ if (ThreadTCP(threadTcp))
     }
 	else
 	{
-	printf("Thread creado correctamente");
+	printf("Thread creado correctamente\n");
 	}
 
-
-
-/*lanzamos thread de serial edu-ciaa */
+/*lanzamos thread de serial edu-ciaa -No lo use cambie la forma que venia relizando el tp*/
 /*
     if (ThreadEduciaa(threadEduCiaa))
 	{
@@ -188,13 +175,12 @@ while(1)
 {	
     int aux,m;
 	nbytesrecibidos = serial_receive( buffer, BUFFER_MAZ_SIZE ); //leo puerto serial y almaceno en buffer
-    
-    
+        
 	if (nbytesrecibidos>0)
 	{
 		if (!memcmp(buffer,">TOGGLE STATE:",strlen(">TOGGLE STATE:"))) //comparo el buffer recibido sea de la pulsacion de la educiaa
 		{
-	    sscanf(buffer,">TOGGLE STATE:%d",&aux); 
+	    sscanf(buffer,">TOGGLE STATE:%d",&aux); // cargo en el buffer el formato y le agrego  
     	printf("\n%s\n",buffer);
 	    printf( "bytes recibidos:%i\n", nbytesrecibidos );
 	    
@@ -207,8 +193,7 @@ while(1)
 	}
 	}	
 /* tiempo de refresco del polling */
-sleep(1);
-
+  usleep(10000);                   //Para que no sea bloqueante 
 }
     printf("\n\n sale While\r\n");
 	exit(EXIT_SUCCESS);
@@ -271,18 +256,14 @@ int ThreadTCP(pthread_t threadtcp)
     printf( "error pthread_create" );
 	return 1;
    }
-    //pthread_join (threadtcp, NULL);
-	//printf("Termino\n");
-
-    return 0;
-
+   return 0;
 }
 
 /* handler para el thread que establece comunicacion con el cliente TCP */
 void * ComClienteTcp( void * parameters )
 {
-	printf("Esperando conexiones\r\n"); 
-while(salida) //ver que condicion que pongo aqui 
+printf("Esperando conexiones\r\n"); 
+while(salida) 
 {	
 
    //Ejecutamos accept() para recibir conexiones entrantes
@@ -295,15 +276,7 @@ while(salida) //ver que condicion que pongo aqui
 	char ipClient[32];
 	inet_ntop(AF_INET, &(clientaddr.sin_addr), ipClient, sizeof(ipClient));
 	printf  ("server:  conexion desde:  %s\n",ipClient);
-	
-   
-   
-   //while(conect)  //connected
-  // if( (n = recv(newfd,buffersocket,120,0)) == -1 )
-//	{
-//		perror("Error leyendo mensaje en socket");
-//		exit(1);
-//	}
+  
     
 	while((n = recv(newfd,buffersocket,120,0))!=0)
 	{
@@ -332,18 +305,16 @@ while(salida) //ver que condicion que pongo aqui
 		/*imprimir que no es el formato*/
 		printf("No es el formato del protocolo");
 		n=0;
-		}
-		
-	//buffersocket[n]=0x00;
-	//printf("Recibi %d bytes.:%s\n",n,buffersocket);
-	//n=0;
 	}
+	
+}
  close(newfd);
 }
 return NULL;
 }
 
 
+/*---------No use esto en el TP-----------*/
 int ThreadEduciaa(pthread_t threadciaa)
 {
    printf("\nthread para iniciar comunicacion con edu-ciaa a traves de puerto serie\n");
@@ -379,8 +350,6 @@ while(1)
     int aux;
 	nbytesrecibidos = serial_receive( buffer, BUFFER_MAZ_SIZE ); //leo puerto serial y almaceno en buffer
 
-//		/* se bloquea el mutex */
-//		pthread_mutex_lock (&mutexData);
 
  /*si recibi mensajes imprimo e envio por el socket*/
 
@@ -405,9 +374,7 @@ while(1)
 	    printf( "Dato compartido:%i\n",datoCompartido );
 
 		serial_send(buffer,16);
-		/* se desbloquea el mutex */
-		//pthread_mutex_unlock (&mutexData);
-        }
+		}
 	
     }
 	
