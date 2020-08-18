@@ -43,7 +43,8 @@ int n, nbytesrecibidos;
 char bufferSerial[BUFFER_MAZ_SIZE];
 char buffersocket[BUFFER_MAZ_SIZE];
 char bufferaux[BUFFER_MAZ_SIZE];
-bool conect = true;
+pthread_mutex_t   socket_mutex_flag=PTHREAD_MUTEX_INITIALIZER;
+bool socket_conect = false;
 
 /* declaramos las estructuras y variables para el socket */
 socklen_t addr_len;
@@ -162,7 +163,7 @@ int main(void)
 		int aux;
 		nbytesrecibidos = serial_receive(buffer, BUFFER_MAZ_SIZE); //leo puerto serial y almaceno en buffer
 
-		if (nbytesrecibidos > 0)
+		if ((nbytesrecibidos > 0) && (socket_conect=true))
 		{
 			if (!memcmp(buffer, ">TOGGLE STATE:", strlen(">TOGGLE STATE:"))) //comparo el buffer recibido sea de la pulsacion de la educiaa
 			{
@@ -184,7 +185,6 @@ int main(void)
 	printf("\n\n sale While\r\n");
 	pthread_cancel(threadTcp); 
 	pthread_join(threadTcp,NULL);
-	
 	
 	exit(EXIT_SUCCESS);
 	return 0;
@@ -265,6 +265,12 @@ void *ComClienteTcp(void *parameters)
 			perror("error en accept");
 			exit(1);
 		}
+        /* cambio flag avisa que hay conexion  */
+		pthread_mutex_lock(&socket_mutex_flag);       //Mutex 
+        socket_conect=true;                           //flag para chequear se conecto el socket 
+		pthread_mutex_unlock(&socket_mutex_flag);         
+
+
 		char ipClient[32];
 		inet_ntop(AF_INET, &(clientaddr.sin_addr), ipClient, sizeof(ipClient));
 		printf("server:  conexion desde:  %s\n", ipClient);
@@ -297,6 +303,9 @@ void *ComClienteTcp(void *parameters)
 				n = 0;
 			}
 		}
+		pthread_mutex_lock(&socket_mutex_flag);       //Mutex 
+        socket_conect=false;                           //flag para avisar que desconecta el socket 
+		pthread_mutex_unlock(&socket_mutex_flag);        
 		close(newfd);
 	}
 	return NULL;
